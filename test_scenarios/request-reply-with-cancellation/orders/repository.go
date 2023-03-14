@@ -16,7 +16,7 @@ type RepositoryImpl struct {
 	calls int
 }
 
-func NewRepository(bus *bus.Topic[events.CreateOrderEvent]) RepositoryImpl {
+func NewRepository() RepositoryImpl {
 	result := RepositoryImpl{}
 	bus.Sub(result.OnCreateOrder)
 	return result
@@ -30,7 +30,7 @@ func (r *RepositoryImpl) OnCreateOrder(event events.CreateOrderEvent) {
 	for {
 		select {
 		case <-time.After(4 * time.Second):
-			event.OrderID = r.calls
+			event.NewOrder = &events.NewOrder{ID: r.calls}
 			event.State.Close()
 			return
 		case <-event.State.Ctx.Done():

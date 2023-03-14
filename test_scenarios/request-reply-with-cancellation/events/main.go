@@ -22,8 +22,12 @@ func (s *EventState) Close() {
 	close(s.Done)
 }
 
+type NewOrder struct {
+	ID int
+}
+
 type CreateOrderEvent struct {
-	OrderID    int
+	NewOrder   *NewOrder
 	ProductIDs []int
 	State      *EventState
 }

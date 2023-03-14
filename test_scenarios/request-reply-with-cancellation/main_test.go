@@ -5,16 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/badu/bus"
-	"github.com/badu/bus/test_scenarios/request-reply-with-cancellation/events"
 	"github.com/badu/bus/test_scenarios/request-reply-with-cancellation/orders"
 )
 
 func TestRequestReplyWithCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-	ebus := bus.NewTopic[events.CreateOrderEvent]()
-	svc := orders.NewService(ebus)
-	orders.NewRepository(ebus)
+	svc := orders.NewService()
+	orders.NewRepository()
 
 	response, err := svc.CreateOrder(ctx, []int{1, 2, 3})
 	switch err {

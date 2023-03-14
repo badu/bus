@@ -2,6 +2,7 @@ package orders
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/badu/bus"
@@ -9,29 +10,26 @@ import (
 )
 
 type ServiceImpl struct {
-	sb   *strings.Builder
-	CBus *bus.Topic[*events.RequestEvent[Order]]
-	SBus *bus.Topic[*events.RequestEvent[OrderStatus]]
+	sb *strings.Builder
 }
 
 func NewService(sb *strings.Builder) ServiceImpl {
 	result := ServiceImpl{sb: sb}
-	result.CBus = bus.NewTopic[*events.RequestEvent[Order]]()
-	result.SBus = bus.NewTopic[*events.RequestEvent[OrderStatus]]()
-	NewRepository(sb, result.CBus, result.SBus)
 	return result
 }
 
 func (s *ServiceImpl) RegisterOrder(ctx context.Context, productIDs []int) (*Order, error) {
-	event := events.RequestEvent[Order]{Payload: Order{ProductIDs: productIDs}, Done: make(chan struct{})}
-	s.CBus.Pub(&event)
-	<-event.Done
-	return event.Callback()
+	event := events.NewRequestEvent[Order](Order{ProductIDs: productIDs})
+	s.sb.WriteString(fmt.Sprintf("dispatching event typed %s\n", event.EventID()))
+	bus.Pub(event)
+	<-event.Done            // wait for "reply"
+	return event.Callback() // return the callback, which is containing the actual result
 }
 
 func (s *ServiceImpl) GetOrderStatus(ctx context.Context, orderID int) (*OrderStatus, error) {
-	event := events.RequestEvent[OrderStatus]{Payload: OrderStatus{OrderID: orderID}, Done: make(chan struct{})}
-	s.SBus.Pub(&event)
-	<-event.Done
-	return event.Callback()
+	event := events.NewRequestEvent[OrderStatus](OrderStatus{OrderID: orderID})
+	s.sb.WriteString(fmt.Sprintf("dispatching event typed %s\n", event.EventID()))
+	bus.Pub(event)
+	<-event.Done            // wait for "reply"
+	return event.Callback() // return the callback, which is containing the actual result
 }

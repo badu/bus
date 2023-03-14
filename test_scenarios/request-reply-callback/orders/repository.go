@@ -23,14 +23,10 @@ type RepositoryImpl struct {
 	calls int
 }
 
-func NewRepository(
-	sb *strings.Builder,
-	cBus *bus.Topic[*events.RequestEvent[Order]],
-	sBus *bus.Topic[*events.RequestEvent[OrderStatus]],
-) RepositoryImpl {
+func NewRepository(sb *strings.Builder) RepositoryImpl {
 	result := RepositoryImpl{sb: sb}
-	cBus.Sub(result.onCreateOrder)
-	sBus.Sub(result.onGetOrderStatus)
+	bus.Sub(result.onCreateOrder)
+	bus.Sub(result.onGetOrderStatus)
 	return result
 }
 

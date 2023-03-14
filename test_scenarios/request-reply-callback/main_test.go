@@ -10,6 +10,7 @@ import (
 
 func TestRequestReplyCallback(t *testing.T) {
 	var sb strings.Builder
+	orders.NewRepository(&sb)
 	svc := orders.NewService(&sb)
 
 	ctx := context.Background()
@@ -52,5 +53,7 @@ func TestRequestReplyCallback(t *testing.T) {
 		t.Fatalf("error getting order status : %#v", err)
 	}
 	t.Logf("order #2 status : %s", stat2.Status)
+
+	t.Logf("%s", sb.String())
 
 }

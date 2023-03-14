@@ -48,8 +48,7 @@ func TestSubTopicWhilePub(t *testing.T) {
 }
 
 func TestReusePayloadPointerAsync(t *testing.T) {
-	// if you reuse the payload, you can alter it's content
-	// which is not recommended (see the "random" number of goroutines that catches that change)
+	// if you reuse the payload, you can alter it's content, of course
 
 	topic := bus.NewTopic[*Uint32AsyncEvent]()
 	c := uint32(0)

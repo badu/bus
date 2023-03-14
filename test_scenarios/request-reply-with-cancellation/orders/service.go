@@ -8,17 +8,21 @@ import (
 )
 
 type ServiceImpl struct {
-	bus *bus.Topic[events.CreateOrderEvent]
 }
 
-func NewService(bus *bus.Topic[events.CreateOrderEvent]) ServiceImpl {
-	result := ServiceImpl{bus: bus}
+func NewService() ServiceImpl {
+	result := ServiceImpl{}
 	return result
 }
 
 func (s *ServiceImpl) CreateOrder(ctx context.Context, productIDs []int) (*Order, error) {
-	event := events.CreateOrderEvent{State: events.NewEventState(ctx), ProductIDs: productIDs}
-	s.bus.Pub(event)
+	event := events.CreateOrderEvent{State: events.NewEventState(ctx), ProductIDs: productIDs, NewOrder: &events.NewOrder{}}
+	bus.Pub(event)
 	<-event.State.Done
-	return &Order{ID: event.OrderID, ProductIDs: productIDs}, event.State.Error
+
+	if event.NewOrder != nil && event.State.Error == nil {
+		return &Order{ID: event.NewOrder.ID, ProductIDs: productIDs}, nil
+	}
+
+	return nil, event.State.Error
 }
