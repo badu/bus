@@ -2,6 +2,7 @@ package fire_and_forget
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,19 +12,29 @@ import (
 )
 
 func TestUserRegistration(t *testing.T) {
-	t.Log("Fire and forget test")
+	var sb strings.Builder
 
-	userSvc := users.NewService()
-	notifications.NewSmsService(t)
-	notifications.NewEmailService(t)
-	auditSvc := audit.NewAuditService(t)
+	userSvc := users.NewService(&sb)
+	notifications.NewSmsService(&sb)
+	notifications.NewEmailService(&sb)
+	audit.NewAuditService(&sb)
+
 	userSvc.RegisterUser(context.Background(), "Badu", "+40742222222")
+
 	<-time.After(500 * time.Millisecond)
 
-	// audit will be missing
-	auditSvc.Stop()
 	userSvc.RegisterUser(context.Background(), "Adina", "+40743333333")
+
 	<-time.After(500 * time.Millisecond)
 
-	t.Log("fire and forget testing concluded")
+	const expecting = "user Badu has registered - sending welcome email message\n" +
+		"sms sent requested for number +40742222222 with message Badu your user account was created. Check your email for instructions\n" +
+		"audit event : an sms was successfully sent sent to +40742222222 with message Badu your user account was created. Check your email for instructions\n" +
+		"user Adina has registered - sending welcome email message\n" +
+		"sms sent requested for number +40743333333 with message Adina your user account was created. Check your email for instructions\n"
+
+	got := sb.String()
+	if got != expecting {
+		t.Fatalf("expecting :\n%s but got : \n%s", expecting, got)
+	}
 }

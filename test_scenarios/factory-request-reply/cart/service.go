@@ -2,7 +2,8 @@ package cart
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"strings"
 
 	"github.com/badu/bus"
 	"github.com/badu/bus/test_scenarios/factory-request-reply/events"
@@ -11,35 +12,36 @@ import (
 )
 
 type ServiceImpl struct {
+	sb *strings.Builder
 }
 
-func NewService() ServiceImpl {
-	result := ServiceImpl{}
-
+func NewService(sb *strings.Builder) ServiceImpl {
+	result := ServiceImpl{sb: sb}
 	return result
 }
 
 func (s *ServiceImpl) AddProductToCart(ctx context.Context, productID string) error {
-	e1 := events.NewInventoryGRPCClientRequestEvent()
-	bus.Publish(e1)
-	e1.WaitReply()
+	inventoryClientRequest := events.NewInventoryGRPCClientRequestEvent()
+	bus.Pub(inventoryClientRequest)
+	inventoryClientRequest.WaitReply()
 
-	e2 := events.NewPricesGRPCClientRequestEvent()
-	bus.Publish(e2)
-	e2.WaitReply()
+	pricesClientRequest := events.NewPricesGRPCClientRequestEvent()
+	bus.Pub(pricesClientRequest)
+	pricesClientRequest.WaitReply()
 
-	defer e1.Conn.Close() // close GRPC connection when done
-	stockResponse, err := e1.Client.GetStockForProduct(ctx, &inventory.ProductIDRequest{ID: productID})
+	defer inventoryClientRequest.Conn.Close() // close GRPC connection when done
+	stockResponse, err := inventoryClientRequest.Client.GetStockForProduct(ctx, &inventory.ProductIDRequest{ID: productID})
 	if err != nil {
 		return err
 	}
 
-	defer e2.Conn.Close() // close GRPC connection when done
-	priceResponse, err := e2.Client.GetPricesForProduct(ctx, &prices.ProductIDRequest{ID: productID})
+	defer pricesClientRequest.Conn.Close() // close GRPC connection when done
+	priceResponse, err := pricesClientRequest.Client.GetPricesForProduct(ctx, &prices.ProductIDRequest{ID: productID})
 	if err != nil {
 		return err
 	}
 
-	log.Println("stock", stockResponse.Stock, "price", priceResponse.Price)
+	s.sb.WriteString(fmt.Sprintf("stock %0.2fpcs @ price %0.2f$\n", stockResponse.Stock, priceResponse.Price))
+
 	return nil
 }

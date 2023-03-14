@@ -2,7 +2,7 @@ package factory_request_reply
 
 import (
 	"context"
-	"log"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,9 +13,9 @@ import (
 	"github.com/badu/bus/test_scenarios/factory-request-reply/prices"
 )
 
-type pricesClientStub struct {
-	prices.PricesServiceClient
-}
+var sb strings.Builder
+
+type pricesClientStub struct{}
 
 func (s *pricesClientStub) GetPricesForProduct(ctx context.Context, in *prices.ProductIDRequest) (*prices.ProductPriceResponse, error) {
 	return &prices.ProductPriceResponse{Price: 10.30}, nil
@@ -28,41 +28,54 @@ func (f *fakeCloser) Close() error {
 	return nil
 }
 
-func OnPricesGRPCClientStubRequest(e *events.PricesGRPCClientRequestEvent) bool {
-	log.Println("OnPricesGRPCClientStubRequest", e)
+func OnPricesGRPCClientStubRequest(e *events.PricesGRPCClientRequestEvent) {
+	sb.WriteString("OnPricesGRPCClientStubRequest\n")
 	e.Client = &pricesClientStub{}
 	e.Conn = &fakeCloser{}
 	<-time.After(300 * time.Millisecond)
 	e.Reply()
-	return false
 }
 
-type inventoryClientStub struct {
-	inventory.InventoryServiceClient
-}
+type inventoryClientStub struct{}
 
 func (s *inventoryClientStub) GetStockForProduct(ctx context.Context, in *inventory.ProductIDRequest) (*inventory.ProductStockResponse, error) {
 	return &inventory.ProductStockResponse{Stock: 200}, nil
 }
 
-func OnInventoryGRPCClientStubRequest(e *events.InventoryGRPCClientRequestEvent) bool {
-	log.Println("OnInventoryGRPCClientStubRequest", e)
+func OnInventoryGRPCClientStubRequest(e *events.InventoryGRPCClientRequestEvent) {
+	sb.WriteString("OnInventoryGRPCClientStubRequest\n")
 	e.Client = &inventoryClientStub{}
 	e.Conn = &fakeCloser{}
 	<-time.After(300 * time.Millisecond)
 	e.Reply()
-	return false
 }
 
 func TestGRPCClientStub(t *testing.T) {
-	t.Log("GRPC client stub test")
-	cartSvc := cart.NewService()
 
-	bus.Listen(OnInventoryGRPCClientStubRequest)
-	bus.Listen(OnPricesGRPCClientStubRequest)
+	cartSvc := cart.NewService(&sb)
 
-	cartSvc.AddProductToCart(context.Background(), "1")
-	cartSvc.AddProductToCart(context.Background(), "2")
+	bus.Sub(OnInventoryGRPCClientStubRequest)
+	bus.Sub(OnPricesGRPCClientStubRequest)
 
-	t.Log("GRPC client stubbing testing concluded")
+	err := cartSvc.AddProductToCart(context.Background(), "1")
+	if err != nil {
+		t.Fatalf("error adding product to cart : %#v", err)
+	}
+
+	err = cartSvc.AddProductToCart(context.Background(), "2")
+	if err != nil {
+		t.Fatalf("error adding product to cart : %#v", err)
+	}
+
+	const expecting = "OnInventoryGRPCClientStubRequest\n" +
+		"OnPricesGRPCClientStubRequest\n" +
+		"stock 200.00pcs @ price 10.30$\n" +
+		"OnInventoryGRPCClientStubRequest\n" +
+		"OnPricesGRPCClientStubRequest\n" +
+		"stock 200.00pcs @ price 10.30$\n"
+
+	got := sb.String()
+	if got != expecting {
+		t.Fatalf("expecting :\n%s but got : \n%s", expecting, got)
+	}
 }

@@ -15,7 +15,7 @@ const (
 type InventoryGRPCClientRequestEvent struct {
 	wg     sync.WaitGroup
 	Conn   Closer // should be *grpc.ClientConn, but we're avoiding the import
-	Client inventory.InventoryServiceClient
+	Client inventory.ServiceClient
 }
 
 func NewInventoryGRPCClientRequestEvent() *InventoryGRPCClientRequestEvent {
@@ -43,7 +43,7 @@ func (i *InventoryGRPCClientRequestEvent) Reply() {
 type PricesGRPCClientRequestEvent struct {
 	wg     sync.WaitGroup
 	Conn   Closer // should be *grpc.ClientConn, but we're avoiding the import
-	Client prices.PricesServiceClient
+	Client prices.ServiceClient
 }
 
 func NewPricesGRPCClientRequestEvent() *PricesGRPCClientRequestEvent {

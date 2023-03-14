@@ -1,27 +1,27 @@
 package notifications
 
 import (
-	"testing"
+	"fmt"
+	"strings"
 
 	"github.com/badu/bus"
 	"github.com/badu/bus/test_scenarios/fire-and-forget/events"
 )
 
 type SmsServiceImpl struct {
-	t *testing.T
+	sb *strings.Builder
 }
 
-func NewSmsService(t *testing.T) SmsServiceImpl {
-	result := SmsServiceImpl{t: t}
-	bus.Listen(result.OnSMSSendRequest)
+func NewSmsService(sb *strings.Builder) SmsServiceImpl {
+	result := SmsServiceImpl{sb: sb}
+	bus.Sub(result.OnSMSSendRequest)
 	return result
 }
 
-func (s *SmsServiceImpl) OnSMSSendRequest(event events.SMSRequestEvent) bool {
-	s.t.Logf("sms sent requested for number %q with message %q", event.Number, event.Message)
-	bus.Publish(events.SMSSentEvent{
+func (s *SmsServiceImpl) OnSMSSendRequest(event events.SMSRequestEvent) {
+	s.sb.WriteString(fmt.Sprintf("sms sent requested for number %s with message %s\n", event.Number, event.Message))
+	bus.Pub(events.SMSSentEvent{
 		Request: event,
 		Status:  "successfully sent",
 	})
-	return false
 }

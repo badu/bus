@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-type InventoryServiceClient interface {
+type ServiceClient interface {
 	GetStockForProduct(ctx context.Context, in *ProductIDRequest) (*ProductStockResponse, error) // , opts ...grpc.CallOption) (*ProductStockResponse, error)
 }
 

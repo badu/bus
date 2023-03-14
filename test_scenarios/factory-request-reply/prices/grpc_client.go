@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-type PricesServiceClient interface {
+type ServiceClient interface {
 	GetPricesForProduct(ctx context.Context, in *ProductIDRequest) (*ProductPriceResponse, error) // , opts ...grpc.CallOption) (*ProductPriceResponse, error)
 }
 
