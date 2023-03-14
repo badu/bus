@@ -63,7 +63,3 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    dispatcher. You should still have at least one property of that event that is a pointer (see events
    in `request reply with cancellation` for example). Same technique can be applied when you need `sync.Waitgroup` to be
    passed around with an event that is being sent by value, not by pointer.
-
-## F.A.Q.
-
-TBD
