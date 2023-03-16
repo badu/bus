@@ -13,11 +13,6 @@ type iEventName interface {
 	EventID() string //
 }
 
-// if developers implement this interface, we're spinning a goroutine if the event says it is async
-type iAsync interface {
-	Async() bool
-}
-
 // Listener is being returned when you subscribe to a topic, so you can unsubscribe or access the parent topic
 type Listener[T any] struct {
 	parent   *Topic[T]     // so we can call unsubscribe from parent
@@ -95,20 +90,16 @@ func (s *Listener[T]) Topic() *Topic[T] {
 // Pub allows you to publish an event in that topic
 func (b *Topic[T]) Pub(event T) {
 	b.rwMu.RLock()
-
-	isAsync := false
-	switch m := any(event).(type) {
-	case iAsync:
-		isAsync = m.Async()
+	for topic := range b.subs {
+		b.subs[topic].callback(event)
 	}
+	b.rwMu.RUnlock()
+}
 
-	for sub := range b.subs {
-		if isAsync {
-			go b.subs[sub].callback(event)
-			continue
-		}
-
-		b.subs[sub].callback(event)
+func (b *Topic[T]) PubAsync(event T) {
+	b.rwMu.RLock()
+	for topic := range b.subs {
+		go b.subs[topic].callback(event)
 	}
 	b.rwMu.RUnlock()
 }
@@ -128,9 +119,11 @@ func (o *Bus[T]) Unsub() {
 
 // SubUnsub can be used if you need to unsubscribe immediately after receiving an event, by making your function return true
 func SubUnsub[T any](callback func(event T) bool) *Bus[T] {
-	var event T
+	var (
+		event T
+		key string
+	)
 
-	key := ""
 	switch m := any(event).(type) {
 	case iEventName:
 		key = m.EventID()
@@ -162,9 +155,11 @@ func SubUnsub[T any](callback func(event T) bool) *Bus[T] {
 
 // Sub subscribes a callback function to listen for a specie of events
 func Sub[T any](callback func(event T)) *Bus[T] {
-	var event T
+	var (
+		event T
+		key string
+	)
 
-	key := ""
 	switch m := any(event).(type) {
 	case iEventName:
 		key = m.EventID()
@@ -191,7 +186,8 @@ func Sub[T any](callback func(event T)) *Bus[T] {
 
 // Pub publishes an event which will be dispatched to all listeners
 func Pub[T any](event T) {
-	key := ""
+	var key string
+
 	switch m := any(event).(type) {
 	case iEventName:
 		key = m.EventID()
@@ -205,4 +201,21 @@ func Pub[T any](event T) {
 	}
 
 	topic.(*Topic[T]).Pub(event)
+}
+
+// PubAsync publishes an event which will be dispatched to all listeners
+func PubAsync[T any](event T) {
+	var key string
+	switch m := any(event).(type) {
+	case iEventName:
+		key = m.EventID()
+	default:
+		key = fmt.Sprintf("%T", event)
+	}
+
+	topic, ok := mapper.Load(key)
+	if !ok || topic == nil { // create new topic, even if there are no listeners (otherwise we will have to panic)
+		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+	}
+	topic.(*Topic[T]).PubAsync(event)
 }
