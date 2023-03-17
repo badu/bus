@@ -2,14 +2,21 @@ package fire_and_forget
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/badu/bus"
 	"github.com/badu/bus/test_scenarios/fire-and-forget/audit"
+	"github.com/badu/bus/test_scenarios/fire-and-forget/events"
 	"github.com/badu/bus/test_scenarios/fire-and-forget/notifications"
 	"github.com/badu/bus/test_scenarios/fire-and-forget/users"
 )
+
+func OnDummyEvent(event *events.DummyEvent) {
+	fmt.Println("dummy event async ?", event.Async())
+}
 
 func TestUserRegistration(t *testing.T) {
 	var sb strings.Builder
@@ -18,6 +25,8 @@ func TestUserRegistration(t *testing.T) {
 	notifications.NewSmsService(&sb)
 	notifications.NewEmailService(&sb)
 	audit.NewAuditService(&sb)
+
+	bus.Sub(OnDummyEvent)
 
 	userSvc.RegisterUser(context.Background(), "Badu", "+40742222222")
 

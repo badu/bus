@@ -11,20 +11,8 @@ type Uint32SyncEvent struct {
 	u uint32
 }
 
-func (u Uint32SyncEvent) EventID() string {
-	return "Uint32SyncEvent"
-}
-
-func (u Uint32SyncEvent) Async() bool {
-	return false
-}
-
 type Uint32AsyncEvent struct {
 	u uint32
-}
-
-func (u Uint32AsyncEvent) EventID() string {
-	return "Uint32AsyncEvent"
 }
 
 func (u Uint32AsyncEvent) Async() bool {

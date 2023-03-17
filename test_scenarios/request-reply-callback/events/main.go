@@ -1,11 +1,5 @@
 package events
 
-import (
-	"fmt"
-)
-
-const RequestEventType = "RequestEvent"
-
 type RequestEvent[T any] struct {
 	Payload  T
 	Callback func() (*T, error)
@@ -17,11 +11,6 @@ func NewRequestEvent[T any](payload T) *RequestEvent[T] {
 		Payload: payload,
 		Done:    make(chan struct{}),
 	}
-}
-
-func (i *RequestEvent[T]) EventID() string {
-	var t T
-	return fmt.Sprintf("%s%T", RequestEventType, t)
 }
 
 func (i *RequestEvent[T]) Async() bool {

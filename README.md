@@ -10,21 +10,19 @@ and the handler is having the following signature:
 
 `func OnMyEventOccurred(event InterestingEvent)`
 
-where `InterestingEvent` has to be a struct which has to implement two methods:
-
-`type InterestingEvent struct{}`
-
-`func (e InterestingEvent) EventID() string{ return "MyUniqueName" }`
-
-where the string which represents the name of the event has to be unique across the event system.
-
-`func (e InterestingEvent) Async() bool{ return true }`
-
-where we signal that the event will be passed to the listeners by spinning up a goroutine.
-
 The event producer will simply do:
 
 `bus.Pub(InterestingEvent{})`
+
+Optional, to allow the bus to spin a goroutine for dispatching events, implement the following interface:
+
+`func (e InterestingEvent) Async() bool{ return true }`
+
+or
+
+`func (e *InterestingEvent) Async() bool{ return true }`
+
+By default, the bus is using sync events : waits for listeners to complete their jobs before calling the next listener.
 
 Usage : `go get github.com/badu/bus`
 
@@ -100,10 +98,6 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
 
    I am sure that you will find this technique interesting and having a large number of applications.
 
-   An important note is about not forgetting to implement the `EventID() string` correctly, as incorrect naming triggers
-   panic (expecting one type of event, but receiving another). To exemplify this, just alter the return of
-   this [function](https://github.com/badu/bus/blob/main/test_scenarios/request-reply-callback/events/main.go#L24).
-
 4. Request Reply with Cancellation
 
    Last but, not least, this is an example about providing `context.Context` along the publisher subscriber chain.
@@ -120,7 +114,9 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    because changing properties that represents the `reply` would not be reflected. Also, when using `sync.WaitGroup`
    inside your event struct, always use method receivers and pass the event as pointer, otherwise you will be passing a
    lock by value (which is `sync.Locker`).
-2. be careful if you don't want to use pointers for events, but you still need to pass values from the listener to the
+3. be careful if you don't want to use pointers for events, but you still need to pass values from the listener to the
    dispatcher. You should still have at least one property of that event that is a pointer (see events
    in `request reply with cancellation` for example). Same technique can be applied when you need `sync.Waitgroup` to be
    passed around with an event that is being sent by value, not by pointer.
+4. you can override the event name (which is by default, built using `fmt.Sprintf("%T", yourEvent)`) you need to
+   implement `EventID() string` interface.

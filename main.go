@@ -1,33 +1,38 @@
 package bus
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 )
 
-var mapper sync.Map // holds key (event id, typed string) versus topic values
+var mapper sync.Map // holds key (event name - string) versus topic values
 
-// internal interface that all the events must implement
-type iEvent interface {
+// we allow developers to override event names. They should be careful about name collisions
+type iEventName interface {
 	EventID() string //
-	Async() bool     // if returns true, this event will be triggered by spinning a goroutine
+}
+
+// if developers implement this interface, we're spinning a goroutine if the event says it is async
+type iAsync interface {
+	Async() bool
 }
 
 // Listener is being returned when you subscribe to a topic, so you can unsubscribe or access the parent topic
-type Listener[T iEvent] struct {
+type Listener[T any] struct {
 	parent   *Topic[T]     // so we can call unsubscribe from parent
 	callback func(event T) // the function that we're going to call
 }
 
 // Topic keeps the subscribers of one topic
-type Topic[T iEvent] struct {
+type Topic[T any] struct {
 	subs      []*Listener[T] // list of listeners
 	rwMu      sync.RWMutex   // guards subs
 	lisnsPool sync.Pool      // a pool of listeners
 }
 
 // NewTopic creates a new topic for a specie of events
-func NewTopic[T iEvent]() *Topic[T] {
+func NewTopic[T any]() *Topic[T] {
 	result := &Topic[T]{}
 	result.lisnsPool.New = func() any {
 		return &Listener[T]{
@@ -90,19 +95,26 @@ func (s *Listener[T]) Topic() *Topic[T] {
 // Pub allows you to publish an event in that topic
 func (b *Topic[T]) Pub(event T) {
 	b.rwMu.RLock()
-	for topic := range b.subs {
-		if event.Async() {
-			go b.subs[topic].callback(event)
+
+	isAsync := false
+	switch m := any(event).(type) {
+	case iAsync:
+		isAsync = m.Async()
+	}
+
+	for sub := range b.subs {
+		if isAsync {
+			go b.subs[sub].callback(event)
 			continue
 		}
 
-		b.subs[topic].callback(event)
+		b.subs[sub].callback(event)
 	}
 	b.rwMu.RUnlock()
 }
 
 // Bus is being returned when you subscribe, so you can manually Unsub
-type Bus[T iEvent] struct {
+type Bus[T any] struct {
 	listener *Listener[T]
 	stop     atomic.Uint32 // flag for unsubscribing after receiving one event
 }
@@ -115,11 +127,20 @@ func (o *Bus[T]) Unsub() {
 }
 
 // SubUnsub can be used if you need to unsubscribe immediately after receiving an event, by making your function return true
-func SubUnsub[T iEvent](callback func(event T) bool) *Bus[T] {
+func SubUnsub[T any](callback func(event T) bool) *Bus[T] {
 	var event T
-	topic, ok := mapper.Load(event.EventID())
+
+	key := ""
+	switch m := any(event).(type) {
+	case iEventName:
+		key = m.EventID()
+	default:
+		key = fmt.Sprintf("%T", event)
+	}
+
+	topic, ok := mapper.Load(key)
 	if !ok || topic == nil {
-		topic, _ = mapper.LoadOrStore(event.EventID(), NewTopic[T]())
+		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
 	}
 
 	var result Bus[T]
@@ -140,11 +161,20 @@ func SubUnsub[T iEvent](callback func(event T) bool) *Bus[T] {
 }
 
 // Sub subscribes a callback function to listen for a specie of events
-func Sub[T iEvent](callback func(event T)) *Bus[T] {
+func Sub[T any](callback func(event T)) *Bus[T] {
 	var event T
-	topic, ok := mapper.Load(event.EventID())
+
+	key := ""
+	switch m := any(event).(type) {
+	case iEventName:
+		key = m.EventID()
+	default:
+		key = fmt.Sprintf("%T", event)
+	}
+
+	topic, ok := mapper.Load(key)
 	if !ok || topic == nil {
-		topic, _ = mapper.LoadOrStore(event.EventID(), NewTopic[T]())
+		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
 	}
 
 	var result Bus[T]
@@ -160,10 +190,19 @@ func Sub[T iEvent](callback func(event T)) *Bus[T] {
 }
 
 // Pub publishes an event which will be dispatched to all listeners
-func Pub[T iEvent](event T) {
-	topic, ok := mapper.Load(event.EventID())
-	if !ok || topic == nil { // create new topic, even if there are no listeners (otherwise we will have to panic)
-		topic, _ = mapper.LoadOrStore(event.EventID(), NewTopic[T]())
+func Pub[T any](event T) {
+	key := ""
+	switch m := any(event).(type) {
+	case iEventName:
+		key = m.EventID()
+	default:
+		key = fmt.Sprintf("%T", event)
 	}
+
+	topic, ok := mapper.Load(key)
+	if !ok || topic == nil { // create new topic, even if there are no listeners (otherwise we will have to panic)
+		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+	}
+
 	topic.(*Topic[T]).Pub(event)
 }

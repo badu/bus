@@ -31,11 +31,3 @@ type CreateOrderEvent struct {
 	ProductIDs []int
 	State      *EventState
 }
-
-func (c CreateOrderEvent) EventID() string {
-	return "CreateOrderEventType"
-}
-
-func (c CreateOrderEvent) Async() bool {
-	return false
-}

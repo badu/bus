@@ -20,7 +20,7 @@ func NewService(sb *strings.Builder) ServiceImpl {
 
 func (s *ServiceImpl) RegisterOrder(ctx context.Context, productIDs []int) (*Order, error) {
 	event := events.NewRequestEvent[Order](Order{ProductIDs: productIDs})
-	s.sb.WriteString(fmt.Sprintf("dispatching event typed %s\n", event.EventID()))
+	s.sb.WriteString(fmt.Sprintf("dispatching event typed %T\n", event))
 	bus.Pub(event)
 	<-event.Done            // wait for "reply"
 	return event.Callback() // return the callback, which is containing the actual result
@@ -28,7 +28,7 @@ func (s *ServiceImpl) RegisterOrder(ctx context.Context, productIDs []int) (*Ord
 
 func (s *ServiceImpl) GetOrderStatus(ctx context.Context, orderID int) (*OrderStatus, error) {
 	event := events.NewRequestEvent[OrderStatus](OrderStatus{OrderID: orderID})
-	s.sb.WriteString(fmt.Sprintf("dispatching event typed %s\n", event.EventID()))
+	s.sb.WriteString(fmt.Sprintf("dispatching event typed %T\n", event))
 	bus.Pub(event)
 	<-event.Done            // wait for "reply"
 	return event.Callback() // return the callback, which is containing the actual result
