@@ -55,15 +55,15 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    SMS) and `audit`. When a user registers, we want to send welcoming messages via SMS and email, but we also want to
    audit that registration for reporting purposes.
 
-   The [UserRegisteredEvent](https://github.com/badu/bus/blob/main/test_scenarios/fire-and-forget/events/main.go#L3)
+   The [UserRegisteredEvent](https://github.com/badu/bus/blob/master/test_scenarios/fire-and-forget/events/main.go#L3)
    will carry the freshly registered username (which is also the email) and phone to the email and sms services. The
-   event is [triggered](https://github.com/badu/bus/blob/main/test_scenarios/fire-and-forget/users/service.go#L23) by
+   event is [triggered](https://github.com/badu/bus/blob/master/test_scenarios/fire-and-forget/users/service.go#L23) by
    the user service, which performs the creation of the user account. We're using the `fire and forget` technique here,
    because the operation of registration should not depend on the fact that we've been able to
    send an welcoming email or a sms, or the audit system malfunctions.
 
    Simulating audit service malfunction is easy. Instead of using `Sub`, we're using `SubUnsub` to register the listener
-   and return [`true`](https://github.com/badu/bus/blob/main/test_scenarios/fire-and-forget/audit/service.go#L36) to
+   and return [`true`](https://github.com/badu/bus/blob/master/test_scenarios/fire-and-forget/audit/service.go#L36) to
    unsubscribe on events of that kind.
 
 2. Factory Request Reply
@@ -79,7 +79,7 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    signature gets complicated and large as we one service would depend on a lot of GRPC clients to aggregate data.
 
    As you can see
-   the [test here](https://github.com/badu/bus/blob/main/test_scenarios/factory-request-reply/main_test.go) it's much
+   the [test here](https://github.com/badu/bus/blob/master/test_scenarios/factory-request-reply/main_test.go) it's much
    more elegant and the service constructor is much slimmer.
 
    Events are one sync and one async, just to check it works in both scenarios.
