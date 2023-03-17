@@ -11,16 +11,8 @@ type Uint32SyncEvent struct {
 	u uint32
 }
 
-func (u Uint32SyncEvent) EventID() string {
-	return "Uint32SyncEvent"
-}
-
 type Uint32AsyncEvent struct {
 	u uint32
-}
-
-func (u Uint32AsyncEvent) EventID() string {
-	return "Uint32AsyncEvent"
 }
 
 func BenchmarkBroadcast_0008Sync(b *testing.B) {

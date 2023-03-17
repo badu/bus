@@ -1,6 +1,7 @@
 package bus_test
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestSubTopicWhilePub(t *testing.T) {
 	go func() {
 		<-start
 		topic.PubAsync(&Uint32AsyncEvent{u: 1})
-		close(finishPubWait)
+		defer close(finishPubWait)
 	}()
 
 	newSubCalled := false
@@ -42,6 +43,7 @@ func TestSubTopicWhilePub(t *testing.T) {
 	<-finishPubWait // wait for pub to finish
 
 	<-finishSubWait // wait for sub to finish
+
 	if newSubCalled {
 		t.Fatal("new subscriber should not be called")
 	}
@@ -77,4 +79,46 @@ func TestReusePayloadPointerAsync(t *testing.T) {
 	<-finishPubWait // wait for pub to finish
 
 	t.Logf("altered payload %d for %d listeners", payload.u, c)
+}
+
+func TestAsyncBus(t *testing.T) {
+	c := uint32(0)
+
+	var wg sync.WaitGroup
+	wg.Add(4096)
+	bus.Sub(
+		func(event Uint32AsyncEvent) {
+			atomic.AddUint32(&c, 1)
+			wg.Done()
+		},
+	)
+
+	go func() {
+		for i := 0; i < 1024; i++ {
+			bus.PubAsync(Uint32AsyncEvent{})
+		}
+	}()
+	go func() {
+		for i := 0; i < 1024; i++ {
+			bus.PubAsync(Uint32AsyncEvent{})
+		}
+	}()
+	go func() {
+		for i := 0; i < 1024; i++ {
+			bus.PubAsync(Uint32AsyncEvent{})
+		}
+	}()
+	go func() {
+		for i := 0; i < 1024; i++ {
+			bus.PubAsync(Uint32AsyncEvent{})
+		}
+	}()
+
+	wg.Wait()
+
+	if c != 4096 {
+		t.Fatalf("error : counter should be 4096 but is %d", c)
+	}
+
+	t.Logf("%d", c)
 }

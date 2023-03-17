@@ -13,6 +13,11 @@ type iEventName interface {
 	EventID() string //
 }
 
+// if developers implement this interface, we're spinning a goroutine if the event says it is async
+type iAsync interface {
+	Async() bool
+}
+
 // Listener is being returned when you subscribe to a topic, so you can unsubscribe or access the parent topic
 type Listener[T any] struct {
 	parent   *Topic[T]     // so we can call unsubscribe from parent
@@ -90,17 +95,32 @@ func (s *Listener[T]) Topic() *Topic[T] {
 // Pub allows you to publish an event in that topic
 func (b *Topic[T]) Pub(event T) {
 	b.rwMu.RLock()
-	for topic := range b.subs {
-		b.subs[topic].callback(event)
+
+	isAsync := false
+	switch m := any(event).(type) {
+	case iAsync:
+		isAsync = m.Async()
 	}
+
+	for sub := range b.subs {
+		if isAsync {
+			go b.subs[sub].callback(event)
+			continue
+		}
+
+		b.subs[sub].callback(event)
+	}
+
 	b.rwMu.RUnlock()
 }
 
 func (b *Topic[T]) PubAsync(event T) {
 	b.rwMu.RLock()
-	for topic := range b.subs {
-		go b.subs[topic].callback(event)
+
+	for sub := range b.subs {
+		go b.subs[sub].callback(event)
 	}
+
 	b.rwMu.RUnlock()
 }
 
@@ -121,7 +141,7 @@ func (o *Bus[T]) Unsub() {
 func SubUnsub[T any](callback func(event T) bool) *Bus[T] {
 	var (
 		event T
-		key string
+		key   string
 	)
 
 	switch m := any(event).(type) {
@@ -157,7 +177,7 @@ func SubUnsub[T any](callback func(event T) bool) *Bus[T] {
 func Sub[T any](callback func(event T)) *Bus[T] {
 	var (
 		event T
-		key string
+		key   string
 	)
 
 	switch m := any(event).(type) {
@@ -206,6 +226,7 @@ func Pub[T any](event T) {
 // PubAsync publishes an event which will be dispatched to all listeners
 func PubAsync[T any](event T) {
 	var key string
+
 	switch m := any(event).(type) {
 	case iEventName:
 		key = m.EventID()

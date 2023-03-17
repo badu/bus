@@ -24,6 +24,8 @@ or
 
 By default, the bus is using sync events : waits for listeners to complete their jobs before calling the next listener.
 
+Or, even easier, just call `PubAsync` methods.
+
 Usage : `go get github.com/badu/bus`
 
 ## What Problem Does It Solve?
@@ -53,9 +55,9 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    SMS) and `audit`. When a user registers, we want to send welcoming messages via SMS and email, but we also want to
    audit that registration for reporting purposes.
 
-   The [UserRegisteredEvent](https://github.com/badu/bus/blob/main/test_scenarios/fire-and-forget/events/main.go#L10)
+   The [UserRegisteredEvent](https://github.com/badu/bus/blob/main/test_scenarios/fire-and-forget/events/main.go#L3)
    will carry the freshly registered username (which is also the email) and phone to the email and sms services. The
-   event is [triggered](https://github.com/badu/bus/blob/main/test_scenarios/fire-and-forget/users/service.go#L21) by
+   event is [triggered](https://github.com/badu/bus/blob/main/test_scenarios/fire-and-forget/users/service.go#L23) by
    the user service, which performs the creation of the user account. We're using the `fire and forget` technique here,
    because the operation of registration should not depend on the fact that we've been able to
    send an welcoming email or a sms, or the audit system malfunctions.
