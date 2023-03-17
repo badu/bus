@@ -23,7 +23,7 @@ func TestSubTopicWhilePub(t *testing.T) {
 
 	go func() {
 		<-start
-		topic.Pub(&Uint32AsyncEvent{u: 1})
+		topic.PubAsync(&Uint32AsyncEvent{u: 1})
 		close(finishPubWait)
 	}()
 

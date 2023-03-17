@@ -11,12 +11,16 @@ type Uint32SyncEvent struct {
 	u uint32
 }
 
+func (u Uint32SyncEvent) EventID() string {
+	return "Uint32SyncEvent"
+}
+
 type Uint32AsyncEvent struct {
 	u uint32
 }
 
-func (u Uint32AsyncEvent) Async() bool {
-	return true
+func (u Uint32AsyncEvent) EventID() string {
+	return "Uint32AsyncEvent"
 }
 
 func BenchmarkBroadcast_0008Sync(b *testing.B) {
@@ -46,7 +50,7 @@ func BenchmarkBroadcast_0008Async(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(Uint32AsyncEvent{u: 1})
+			topic.PubAsync(Uint32AsyncEvent{u: 1})
 		}
 	})
 }
@@ -78,7 +82,7 @@ func BenchmarkBroadcast_0008PtrAsync(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(&Uint32AsyncEvent{u: 1})
+			topic.PubAsync(&Uint32AsyncEvent{u: 1})
 		}
 	})
 }
@@ -110,7 +114,7 @@ func BenchmarkBroadcast_0256Async(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(Uint32AsyncEvent{u: 1})
+			topic.PubAsync(Uint32AsyncEvent{u: 1})
 		}
 	})
 }
@@ -142,7 +146,7 @@ func BenchmarkBroadcast_0256PtrAsync(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(&Uint32AsyncEvent{u: 1})
+			topic.PubAsync(&Uint32AsyncEvent{u: 1})
 		}
 	})
 }
@@ -174,7 +178,7 @@ func BenchmarkBroadcast_1kAsync(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(Uint32AsyncEvent{u: 1})
+			topic.PubAsync(Uint32AsyncEvent{u: 1})
 		}
 	})
 }
@@ -206,7 +210,7 @@ func BenchmarkBroadcast_1kPtrAsync(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(&Uint32AsyncEvent{u: 1})
+			topic.PubAsync(&Uint32AsyncEvent{u: 1})
 		}
 	})
 }
@@ -237,7 +241,7 @@ func BenchmarkBroadcast_2kAsync(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(Uint32AsyncEvent{u: 1})
+			topic.PubAsync(Uint32AsyncEvent{u: 1})
 		}
 	})
 }
@@ -269,7 +273,7 @@ func BenchmarkBroadcast_2kPtrAsync(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			topic.Pub(&Uint32AsyncEvent{u: 1})
+			topic.PubAsync(&Uint32AsyncEvent{u: 1})
 		}
 	})
 }
