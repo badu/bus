@@ -15,8 +15,8 @@ type ServiceImpl struct {
 func NewAuditService(sb *strings.Builder) ServiceImpl {
 	result := ServiceImpl{sb: sb}
 	bus.Sub(result.OnUserRegisteredEvent)
-	bus.SubUnsub(result.OnSMSRequestEvent)
-	bus.SubUnsub(result.OnSMSSentEvent)
+	bus.SubCancel(result.OnSMSRequestEvent)
+	bus.SubCancel(result.OnSMSSentEvent)
 	return result
 }
 

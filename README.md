@@ -1,32 +1,139 @@
 # Bus
 
-In it's most simple form, this event bus can be used as following.
+- **Independent**: has no external dependencies
+- **Probably Fast**: no reflection
+- **Type Safe**: built on generics
+- **Small and Simple**: can be used as following:
 
-The listener declares it's interest for an event, by registering a handler:
+Having the following event:
 
-`bus.Sub(OnMyEventOccurred)`
+```go
+    package events
 
-and the handler is having the following signature:
+    type InterestingEvent struct {
+    }
+```
 
-`func OnMyEventOccurred(event InterestingEvent)`
+a listener can registering a handler by calling `Sub` method:
 
-The event producer will simply do:
+```go
+    package subscriber
 
-`bus.Pub(InterestingEvent{})`
+   import "github.com/badu/bus"
+   
+   // ... somewhere in a setup function / constructor    
+   bus.Sub(OnMyEventOccurred)
+```
 
-Optional, to allow the bus to spin a goroutine for dispatching events, implement the following interface:
+where the handler is having the following signature:
 
-`func (e InterestingEvent) Async() bool{ return true }`
+```go
+    func OnMyEventOccurred(event InterestingEvent){
+      // do something with the event here
+	}   
+```
 
-or
+The event producer / dispatcher will simply:
 
-`func (e *InterestingEvent) Async() bool{ return true }`
+```go
+    package dispatcher
 
-By default, the bus is using sync events : waits for listeners to complete their jobs before calling the next listener.
+   import "github.com/badu/bus"
+   
+   // ...somewhere in a dispatching function
+   
+   bus.Pub(InterestingEvent{})
+```
 
-Or, even easier, just call `PubAsync` methods.
+If the event needs to go async, in the sense that the bus package will spin up a goroutine for the caller, just
+implement the following interface:
+
+```go
+    package events
+
+    func (e InterestingEvent) Async() bool{ return true }
+``` 
+
+if the handler has the signature declared above, or
+
+```go
+    package events
+
+    func (e *InterestingEvent) Async() bool{ return true }
+``` 
+
+if the handler has the signature as following:
+
+```go
+    func OnMyEventOccurred(event *InterestingEvent){
+      // do something with the event here
+	}   
+```
+
+Another way to publish an event async, is to use `PubAsync` method that package exposes.
+
+By default, the bus is using sync events, which means that it waits for listeners to complete their jobs before calling
+the next listener.
 
 Usage : `go get github.com/badu/bus`
+
+## F.A.Q.
+
+1. I want to cancel subscription at some point. How do I do that?
+
+Subscribing returns access to the `Cancel` method
+
+```go
+package subscriber
+
+// ... somewhere in a setup function / constructor
+subscription := bus.Sub(OnMyEventOccurred)
+// when needed, calling cancel of subscription, so function OnMyEventOccurred won't be called anymore
+subscription.Cancel()
+```
+
+2. Can I subscribe once?
+
+Yes! The event handler has to return true.
+
+```go
+package subscriber
+// ... somewhere in a setup function / constructor
+
+bus.SubCancel( func(event InterestingEvent) bool {
+    // do something with the event here
+	return true // returning true will cancel the subscription
+})
+```
+
+3. I want to inspect registered events. How do I do that?
+
+The events mapper is a `sync.Map`, so iterate using `Range`
+
+```go
+bus.Range(func(k, v any)bool{
+	fmt.Printf("%#v %#v\n", k, v)
+})
+```
+
+4. I want to use my own event names. Is that possible?
+
+Yes! You have to implement the following interface:
+
+```go
+package events
+
+func (e InterestingEvent) EventID() string{
+	return "YourInterestingEventName"
+}
+```
+
+The event name is the key of the mapper, which means that implementing your own event names might cause panics 
+if you have name collisions.
+
+5. Will I have race conditions?
+
+No. The package is concurrent safe.
 
 ## What Problem Does It Solve?
 
@@ -60,9 +167,10 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    event is [triggered](https://github.com/badu/bus/blob/master/test_scenarios/fire-and-forget/users/service.go#L23) by
    the user service, which performs the creation of the user account. We're using the `fire and forget` technique here,
    because the operation of registration should not depend on the fact that we've been able to
-   send an welcoming email or a sms, or the audit system malfunctions.
+   send a welcoming email or a sms, or the audit system malfunctions.
 
-   Simulating audit service malfunction is easy. Instead of using `Sub`, we're using `SubUnsub` to register the listener
+   Simulating audit service malfunctions easy.
+   Instead of using `Sub`, we're using `SubUnsub` to register the listener
    and return [`true`](https://github.com/badu/bus/blob/master/test_scenarios/fire-and-forget/audit/service.go#L36) to
    unsubscribe on events of that kind.
 
@@ -76,7 +184,7 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
 
    The `cart` service requires two replies from two other microservices `inventory` and `prices`. In the past, I've been
    using a closure function to provide the service with both real GRPC clients or with mocks and stubs. The service
-   signature gets complicated and large as we one service would depend on a lot of GRPC clients to aggregate data.
+   signature gets complicated and large as one service would depend on a lot of GRPC clients to aggregate data.
 
    As you can see
    the [test here](https://github.com/badu/bus/blob/master/test_scenarios/factory-request-reply/main_test.go) it's much
@@ -92,7 +200,7 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    In this example, we wanted to achieve two things. First is that the `service` and the `repository` are decoupled by
    events. More than that, we wanted that the events are generic on their own.
 
-   The orders service will dispatch a generic request event, one for placing an order, which will carry an `Order` (
+   The `orders` service will dispatch a generic request event, one for placing an order, which will carry an `Order` (
    model) struct with that request and another `OrderStatus` (model) struct using the same generic event.
 
    We are using a channel inside the generic `RequestEvent` to signal the `reply` to the publisher, which in this case
@@ -106,7 +214,7 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    The `repository` is simulating a long database call, longer than the context's cancellation, so the service gets the
    deadline exceeded error.
 
-   Note that this final example is not using pointer to the event's struct, but it contains two properties which have
+   Note that this final example is not using a pointer to the event struct, but it contains two properties which have
    pointers, so the `service` can access the altered `reply`.
 
 ## Recommendations
@@ -114,8 +222,8 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
 1. always place your events inside a separate `events` package, avoiding circular dependencies.
 2. in general, in `request-reply` scenarios, the events should be passed as pointers (even if it's somewhat slower),
    because changing properties that represents the `reply` would not be reflected. Also, when using `sync.WaitGroup`
-   inside your event struct, always use method receivers and pass the event as pointer, otherwise you will be passing a
-   lock by value (which is `sync.Locker`).
+   inside your event struct, always use method receivers and pass the event as a pointer — otherwise you will be passing
+   a lock by value (which is `sync.Locker`).
 3. be careful if you don't want to use pointers for events, but you still need to pass values from the listener to the
    dispatcher. You should still have at least one property of that event that is a pointer (see events
    in `request reply with cancellation` for example). Same technique can be applied when you need `sync.Waitgroup` to be

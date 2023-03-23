@@ -55,8 +55,8 @@ func (b *Topic[T]) Sub(callback func(v T)) *Listener[T] {
 	return result
 }
 
-// unsub is private to the topic, but can be accessed via Listener
-func (b *Topic[T]) unsub(who *Listener[T]) {
+// cancel is private to the topic, but can be accessed via Listener
+func (b *Topic[T]) cancel(who *Listener[T]) {
 	b.rwMu.Lock()
 	for i := range b.subs {
 		if b.subs[i] != who {
@@ -82,9 +82,9 @@ func (b *Topic[T]) NumSubs() int {
 	return result
 }
 
-// Unsub forgets the indicated callback
-func (s *Listener[T]) Unsub() {
-	s.parent.unsub(s)
+// Cancel forgets the indicated callback
+func (s *Listener[T]) Cancel() {
+	s.parent.cancel(s)
 }
 
 // Topic gives access to the underlying topic
@@ -124,21 +124,21 @@ func (b *Topic[T]) PubAsync(event T) {
 	b.rwMu.RUnlock()
 }
 
-// Bus is being returned when you subscribe, so you can manually Unsub
+// Bus is being returned when you subscribe, so you can manually Cancel
 type Bus[T any] struct {
 	listener *Listener[T]
 	stop     atomic.Uint32 // flag for unsubscribing after receiving one event
 }
 
-// Unsub allows caller to manually unsubscribe, in case they don't want to use SubUnsub
-func (o *Bus[T]) Unsub() {
+// Cancel allows callers to manually unsubscribe, in case they don't want to use SubCancel
+func (o *Bus[T]) Cancel() {
 	if o.stop.CompareAndSwap(0, 1) {
-		go o.listener.Unsub()
+		go o.listener.Cancel()
 	}
 }
 
-// SubUnsub can be used if you need to unsubscribe immediately after receiving an event, by making your function return true
-func SubUnsub[T any](callback func(event T) bool) *Bus[T] {
+// SubCancel can be used if you need to unsubscribe immediately after receiving an event, by making your function return true
+func SubCancel[T any](callback func(event T) bool) *Bus[T] {
 	var (
 		event T
 		key   string
@@ -163,9 +163,9 @@ func SubUnsub[T any](callback func(event T) bool) *Bus[T] {
 			return
 		}
 
-		unsub := callback(v)
-		if unsub {
-			result.Unsub()
+		shouldCancel := callback(v)
+		if shouldCancel {
+			result.Cancel()
 		}
 
 	})
@@ -216,7 +216,7 @@ func Pub[T any](event T) {
 	}
 
 	topic, ok := mapper.Load(key)
-	if !ok || topic == nil { // create new topic, even if there are no listeners (otherwise we will have to panic)
+	if !ok || topic == nil { // create a new topic, even if there are no listeners (otherwise we will have to panic)
 		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
 	}
 
@@ -235,8 +235,13 @@ func PubAsync[T any](event T) {
 	}
 
 	topic, ok := mapper.Load(key)
-	if !ok || topic == nil { // create new topic, even if there are no listeners (otherwise we will have to panic)
+	if !ok || topic == nil { // create a new topic, even if there are no listeners (otherwise we will have to panic)
 		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
 	}
 	topic.(*Topic[T]).PubAsync(event)
+}
+
+// Range gives access to mapper Range
+func Range(f func(k, v any) bool) {
+	mapper.Range(f)
 }

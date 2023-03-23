@@ -122,3 +122,47 @@ func TestAsyncBus(t *testing.T) {
 
 	t.Logf("%d", c)
 }
+
+func TestRange(t *testing.T) {
+
+	type Event1 struct{}
+	type Event2 struct{}
+	type Event3 struct{}
+	type Event4 struct{}
+	type Event5 struct{}
+
+	bus.Sub(func(e Event1) {})
+	bus.Sub(func(e Event2) {})
+	bus.Sub(func(e Event2) {})
+	bus.Sub(func(e Event3) {})
+	bus.Sub(func(e Event3) {})
+	bus.Sub(func(e Event3) {})
+	bus.Sub(func(e Event4) {})
+	bus.Sub(func(e Event4) {})
+	bus.Sub(func(e Event4) {})
+	bus.Sub(func(e Event4) {})
+	bus.Sub(func(e Event5) {})
+	bus.Sub(func(e Event5) {})
+	bus.Sub(func(e Event5) {})
+	bus.Sub(func(e Event5) {})
+	bus.Sub(func(e Event5) {})
+
+	seen := map[string]struct{}{
+		"bus_test.Event2": {},
+		"bus_test.Event3": {},
+		"bus_test.Event1": {},
+		"bus_test.Event5": {},
+		"bus_test.Event4": {},
+	}
+
+	bus.Range(func(k, _ any) bool {
+		if _, has := seen[k.(string)]; has {
+			delete(seen, k.(string))
+		}
+		return true
+	})
+
+	if len(seen) > 0 {
+		t.Fatalf("error : not all events were seen")
+	}
+}
