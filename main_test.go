@@ -155,7 +155,7 @@ func TestRange(t *testing.T) {
 		"bus_test.Event4": {},
 	}
 
-	bus.Range(func(k, _ any) bool {
+	bus.DefaultBus.Range(func(k, _ any) bool {
 		if _, has := seen[k.(string)]; has {
 			delete(seen, k.(string))
 		}
