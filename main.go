@@ -6,7 +6,11 @@ import (
 	"sync/atomic"
 )
 
-var mapper sync.Map // holds key (event name - string) versus topic values
+var DefaultBus *GenericBus = NewGenericBus()
+
+type GenericBus struct {
+	mapper sync.Map // holds key (event name - string) versus topic values
+}
 
 // we allow developers to override event names. They should be careful about name collisions
 type iEventName interface {
@@ -29,6 +33,11 @@ type Topic[T any] struct {
 	subs      []*Listener[T] // list of listeners
 	rwMu      sync.RWMutex   // guards subs
 	lisnsPool sync.Pool      // a pool of listeners
+}
+
+// NewGenericBus creates a new event bus
+func NewGenericBus() *GenericBus {
+	return &GenericBus{}
 }
 
 // NewTopic creates a new topic for a specie of events
@@ -139,6 +148,11 @@ func (o *Bus[T]) Cancel() {
 
 // SubCancel can be used if you need to unsubscribe immediately after receiving an event, by making your function return true
 func SubCancel[T any](callback func(event T) bool) *Bus[T] {
+	return SubCancelWithBus[T](DefaultBus, callback)
+}
+
+// SubCancelWithBus can be used if you need to unsubscribe immediately after receiving an event with the bus, by making your function return true
+func SubCancelWithBus[T any](bus *GenericBus, callback func(event T) bool) *Bus[T] {
 	var (
 		event T
 		key   string
@@ -151,9 +165,9 @@ func SubCancel[T any](callback func(event T) bool) *Bus[T] {
 		key = fmt.Sprintf("%T", event)
 	}
 
-	topic, ok := mapper.Load(key)
+	topic, ok := bus.mapper.Load(key)
 	if !ok || topic == nil {
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+		topic, _ = bus.mapper.LoadOrStore(key, NewTopic[T]())
 	}
 
 	var result Bus[T]
@@ -175,6 +189,11 @@ func SubCancel[T any](callback func(event T) bool) *Bus[T] {
 
 // Sub subscribes a callback function to listen for a specie of events
 func Sub[T any](callback func(event T)) *Bus[T] {
+	return SubWithBus[T](DefaultBus, callback)
+}
+
+// SubWithBus subscribes a callback function to listen for a specie of events with the bus
+func SubWithBus[T any](bus *GenericBus, callback func(event T)) *Bus[T] {
 	var (
 		event T
 		key   string
@@ -187,9 +206,9 @@ func Sub[T any](callback func(event T)) *Bus[T] {
 		key = fmt.Sprintf("%T", event)
 	}
 
-	topic, ok := mapper.Load(key)
+	topic, ok := bus.mapper.Load(key)
 	if !ok || topic == nil {
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+		topic, _ = bus.mapper.LoadOrStore(key, NewTopic[T]())
 	}
 
 	var result Bus[T]
@@ -206,6 +225,11 @@ func Sub[T any](callback func(event T)) *Bus[T] {
 
 // Pub publishes an event which will be dispatched to all listeners
 func Pub[T any](event T) {
+	PubWithbus[T](DefaultBus, event)
+}
+
+// PubWithbus publishes an event which will be dispatched to all listeners with the bus
+func PubWithbus[T any](bus *GenericBus, event T) {
 	var key string
 
 	switch m := any(event).(type) {
@@ -215,9 +239,9 @@ func Pub[T any](event T) {
 		key = fmt.Sprintf("%T", event)
 	}
 
-	topic, ok := mapper.Load(key)
+	topic, ok := bus.mapper.Load(key)
 	if !ok || topic == nil { // create a new topic, even if there are no listeners (otherwise we will have to panic)
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+		topic, _ = bus.mapper.LoadOrStore(key, NewTopic[T]())
 	}
 
 	topic.(*Topic[T]).Pub(event)
@@ -225,6 +249,11 @@ func Pub[T any](event T) {
 
 // PubAsync publishes an event which will be dispatched to all listeners
 func PubAsync[T any](event T) {
+	PubWithBusAsync[T](DefaultBus, event)
+}
+
+// PubWithBusAsync publishes an event which will be dispatched to all listeners with the bus
+func PubWithBusAsync[T any](bus *GenericBus, event T) {
 	var key string
 
 	switch m := any(event).(type) {
@@ -234,14 +263,14 @@ func PubAsync[T any](event T) {
 		key = fmt.Sprintf("%T", event)
 	}
 
-	topic, ok := mapper.Load(key)
+	topic, ok := bus.mapper.Load(key)
 	if !ok || topic == nil { // create a new topic, even if there are no listeners (otherwise we will have to panic)
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+		topic, _ = bus.mapper.LoadOrStore(key, NewTopic[T]())
 	}
 	topic.(*Topic[T]).PubAsync(event)
 }
 
 // Range gives access to mapper Range
-func Range(f func(k, v any) bool) {
-	mapper.Range(f)
+func (bus *GenericBus) Range(f func(k, v any) bool) {
+	bus.mapper.Range(f)
 }
