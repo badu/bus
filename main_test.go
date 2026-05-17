@@ -13,9 +13,9 @@ func TestSubTopicWhilePub(t *testing.T) {
 	// we publish an event and while doing that,
 	// we register another one on a different goroutine
 
-	topic := bus.NewTopic[*Uint32AsyncEvent]()
+	topic := bus.NewTopic[*Uint32Event]()
 	for i := 0; i < 4096; i++ {
-		topic.Sub(func(v *Uint32AsyncEvent) {})
+		topic.Sub(func(v *Uint32Event) {})
 	}
 
 	finishPubWait := make(chan struct{})
@@ -24,7 +24,7 @@ func TestSubTopicWhilePub(t *testing.T) {
 
 	go func() {
 		<-start
-		topic.PubAsync(&Uint32AsyncEvent{u: 1})
+		topic.Pub(&Uint32Event{u: 1})
 		defer close(finishPubWait)
 	}()
 
@@ -32,7 +32,7 @@ func TestSubTopicWhilePub(t *testing.T) {
 
 	go func() {
 		<-start
-		topic.Sub(func(v *Uint32AsyncEvent) {
+		topic.Sub(func(v *Uint32Event) {
 			newSubCalled = true
 		})
 		close(finishSubWait)
@@ -44,19 +44,19 @@ func TestSubTopicWhilePub(t *testing.T) {
 
 	<-finishSubWait // wait for sub to finish
 
-	if newSubCalled {
-		t.Fatal("new subscriber should not be called")
+	if !newSubCalled {
+		t.Fatal("new subscriber should be called")
 	}
 }
 
-func TestReusePayloadPointerAsync(t *testing.T) {
+func TestReusePayloadPointer(t *testing.T) {
 	// if you reuse the payload, you can alter it's content, of course
 
-	topic := bus.NewTopic[*Uint32AsyncEvent]()
+	topic := bus.NewTopic[*Uint32Event]()
 	c := uint32(0)
 	for i := 0; i < 4096; i++ {
 		k := i
-		topic.Sub(func(v *Uint32AsyncEvent) {
+		topic.Sub(func(v *Uint32Event) {
 			if v.u == 2048 {
 				atomic.AddUint32(&c, 1)
 				return
@@ -70,7 +70,7 @@ func TestReusePayloadPointerAsync(t *testing.T) {
 
 	finishPubWait := make(chan struct{})
 
-	payload := Uint32AsyncEvent{u: 1}
+	payload := Uint32Event{u: 1}
 
 	topic.Pub(&payload)
 
@@ -81,13 +81,13 @@ func TestReusePayloadPointerAsync(t *testing.T) {
 	t.Logf("altered payload %d for %d listeners", payload.u, c)
 }
 
-func TestAsyncBus(t *testing.T) {
+func TestBus(t *testing.T) {
 	c := uint32(0)
 
 	var wg sync.WaitGroup
 	wg.Add(4096)
 	bus.Sub(
-		func(event Uint32AsyncEvent) {
+		func(event Uint32Event) {
 			atomic.AddUint32(&c, 1)
 			wg.Done()
 		},
@@ -95,22 +95,22 @@ func TestAsyncBus(t *testing.T) {
 
 	go func() {
 		for i := 0; i < 1024; i++ {
-			bus.PubAsync(Uint32AsyncEvent{})
+			bus.Pub(Uint32Event{})
 		}
 	}()
 	go func() {
 		for i := 0; i < 1024; i++ {
-			bus.PubAsync(Uint32AsyncEvent{})
+			bus.Pub(Uint32Event{})
 		}
 	}()
 	go func() {
 		for i := 0; i < 1024; i++ {
-			bus.PubAsync(Uint32AsyncEvent{})
+			bus.Pub(Uint32Event{})
 		}
 	}()
 	go func() {
 		for i := 0; i < 1024; i++ {
-			bus.PubAsync(Uint32AsyncEvent{})
+			bus.Pub(Uint32Event{})
 		}
 	}()
 
@@ -164,5 +164,51 @@ func TestRange(t *testing.T) {
 
 	if len(seen) > 0 {
 		t.Fatalf("error : not all events were seen")
+	}
+}
+
+type SomeOtherEvent struct {
+	Name string
+}
+
+type Consumer struct {
+	c  uint32
+	wg *sync.WaitGroup
+}
+
+func (c *Consumer) OnSomeOtherEvent(event SomeOtherEvent) {
+	atomic.AddUint32(&c.c, 1)
+	c.wg.Done()
+}
+
+// TestRace with `go test -run TestRace -race -v`
+func TestRace(t *testing.T) {
+	var c uint32
+	var wg sync.WaitGroup
+	consumers := make([]Consumer, 100)
+	for i := 0; i < 100; i++ {
+		consumers[i] = Consumer{wg: &wg}
+		bus.Sub(consumers[i].OnSomeOtherEvent)
+		bus.Sub(func(event SomeOtherEvent) {
+			atomic.AddUint32(&c, 1)
+			wg.Done()
+		})
+	}
+
+	for i := 0; i < 100; i++ {
+		wg.Add(200)
+		bus.Pub(SomeOtherEvent{Name: "Hello"})
+	}
+
+	wg.Wait()
+
+	if c != 10000 {
+		t.Fatalf("error : expecting counter to be 10000, but it's %d", c)
+	}
+
+	for i := 0; i < 100; i++ {
+		if consumers[i].c != 100 {
+			t.Fatalf("consumer %d should have counted to 100, but counted to %d", i, consumers[i].c)
+		}
 	}
 }

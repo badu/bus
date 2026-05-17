@@ -5,17 +5,9 @@ type UserRegisteredEvent struct {
 	Phone    string
 }
 
-func (e UserRegisteredEvent) Async() bool {
-	return true
-}
-
 type SMSRequestEvent struct {
 	Number  string
 	Message string
-}
-
-func (e SMSRequestEvent) Async() bool {
-	return true
 }
 
 type SMSSentEvent struct {
@@ -23,14 +15,6 @@ type SMSSentEvent struct {
 	Status  string
 }
 
-func (e SMSSentEvent) Async() bool {
-	return true
-}
-
 type DummyEvent struct {
-	AlteredAsync bool
-}
-
-func (e *DummyEvent) Async() bool {
-	return e.AlteredAsync
+	Altered bool
 }

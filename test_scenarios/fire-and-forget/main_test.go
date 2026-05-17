@@ -15,7 +15,7 @@ import (
 )
 
 func OnDummyEvent(event *events.DummyEvent) {
-	fmt.Println("dummy event async ?", event.Async())
+	fmt.Println("dummy event")
 }
 
 func TestUserRegistration(t *testing.T) {

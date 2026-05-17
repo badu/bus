@@ -11,11 +11,11 @@ type Uint32SyncEvent struct {
 	u uint32
 }
 
-type Uint32AsyncEvent struct {
+type Uint32Event struct {
 	u uint32
 }
 
-func BenchmarkBroadcast_0008Sync(b *testing.B) {
+func BenchmarkBroadcast_0008(b *testing.B) {
 	topic := bus.NewTopic[Uint32SyncEvent]()
 	c := uint32(0)
 	for i := 0; i < 8; i++ {
@@ -31,23 +31,7 @@ func BenchmarkBroadcast_0008Sync(b *testing.B) {
 	})
 }
 
-func BenchmarkBroadcast_0008Async(b *testing.B) {
-	topic := bus.NewTopic[Uint32AsyncEvent]()
-	c := uint32(0)
-	for i := 0; i < 8; i++ {
-		topic.Sub(func(v Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(Uint32AsyncEvent{u: 1})
-		}
-	})
-}
-
-func BenchmarkBroadcast_0008PtrSync(b *testing.B) {
+func BenchmarkBroadcast_0008Ptr(b *testing.B) {
 	topic := bus.NewTopic[*Uint32SyncEvent]()
 	c := uint32(0)
 	for i := 0; i < 8; i++ {
@@ -63,23 +47,7 @@ func BenchmarkBroadcast_0008PtrSync(b *testing.B) {
 	})
 }
 
-func BenchmarkBroadcast_0008PtrAsync(b *testing.B) {
-	topic := bus.NewTopic[*Uint32AsyncEvent]()
-	c := uint32(0)
-	for i := 0; i < 8; i++ {
-		topic.Sub(func(v *Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(&Uint32AsyncEvent{u: 1})
-		}
-	})
-}
-
-func BenchmarkBroadcast_0256Sync(b *testing.B) {
+func BenchmarkBroadcast_0256(b *testing.B) {
 	topic := bus.NewTopic[Uint32SyncEvent]()
 	var c uint32
 	for i := 0; i < 256; i++ {
@@ -95,23 +63,7 @@ func BenchmarkBroadcast_0256Sync(b *testing.B) {
 	})
 }
 
-func BenchmarkBroadcast_0256Async(b *testing.B) {
-	topic := bus.NewTopic[Uint32AsyncEvent]()
-	var c uint32
-	for i := 0; i < 256; i++ {
-		topic.Sub(func(v Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(Uint32AsyncEvent{u: 1})
-		}
-	})
-}
-
-func BenchmarkBroadcast_0256PtrSync(b *testing.B) {
+func BenchmarkBroadcast_0256Ptr(b *testing.B) {
 	topic := bus.NewTopic[*Uint32SyncEvent]()
 	var c uint32
 	for i := 0; i < 256; i++ {
@@ -127,23 +79,7 @@ func BenchmarkBroadcast_0256PtrSync(b *testing.B) {
 	})
 }
 
-func BenchmarkBroadcast_0256PtrAsync(b *testing.B) {
-	topic := bus.NewTopic[*Uint32AsyncEvent]()
-	var c uint32
-	for i := 0; i < 256; i++ {
-		topic.Sub(func(v *Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(&Uint32AsyncEvent{u: 1})
-		}
-	})
-}
-
-func BenchmarkBroadcast_1kSync(b *testing.B) {
+func BenchmarkBroadcast_1k(b *testing.B) {
 	topic := bus.NewTopic[Uint32SyncEvent]()
 	var c uint32
 	for i := 0; i < 1024; i++ {
@@ -159,23 +95,7 @@ func BenchmarkBroadcast_1kSync(b *testing.B) {
 	})
 }
 
-func BenchmarkBroadcast_1kAsync(b *testing.B) {
-	topic := bus.NewTopic[Uint32AsyncEvent]()
-	var c uint32
-	for i := 0; i < 1024; i++ {
-		topic.Sub(func(v Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(Uint32AsyncEvent{u: 1})
-		}
-	})
-}
-
-func BenchmarkBroadcast_1kPtrSync(b *testing.B) {
+func BenchmarkBroadcast_1kPtr(b *testing.B) {
 	topic := bus.NewTopic[*Uint32SyncEvent]()
 	var c uint32
 	for i := 0; i < 1024; i++ {
@@ -191,22 +111,7 @@ func BenchmarkBroadcast_1kPtrSync(b *testing.B) {
 	})
 }
 
-func BenchmarkBroadcast_1kPtrAsync(b *testing.B) {
-	topic := bus.NewTopic[*Uint32AsyncEvent]()
-	var c uint32
-	for i := 0; i < 1024; i++ {
-		topic.Sub(func(v *Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(&Uint32AsyncEvent{u: 1})
-		}
-	})
-}
-func BenchmarkBroadcast_2kSync(b *testing.B) {
+func BenchmarkBroadcast_2k(b *testing.B) {
 	topic := bus.NewTopic[Uint32SyncEvent]()
 	var c uint32
 	for i := 0; i < 2048; i++ {
@@ -222,23 +127,7 @@ func BenchmarkBroadcast_2kSync(b *testing.B) {
 	})
 }
 
-func BenchmarkBroadcast_2kAsync(b *testing.B) {
-	topic := bus.NewTopic[Uint32AsyncEvent]()
-	var c uint32
-	for i := 0; i < 2048; i++ {
-		topic.Sub(func(v Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(Uint32AsyncEvent{u: 1})
-		}
-	})
-}
-
-func BenchmarkBroadcast_2kPtrSync(b *testing.B) {
+func BenchmarkBroadcast_2kPtr(b *testing.B) {
 	topic := bus.NewTopic[*Uint32SyncEvent]()
 	var c uint32
 	for i := 0; i < 2048; i++ {
@@ -250,22 +139,6 @@ func BenchmarkBroadcast_2kPtrSync(b *testing.B) {
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
 			topic.Pub(&Uint32SyncEvent{u: 1})
-		}
-	})
-}
-
-func BenchmarkBroadcast_2kPtrAsync(b *testing.B) {
-	topic := bus.NewTopic[*Uint32AsyncEvent]()
-	var c uint32
-	for i := 0; i < 2048; i++ {
-		topic.Sub(func(v *Uint32AsyncEvent) {
-			atomic.AddUint32(&c, v.u)
-		})
-	}
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			topic.PubAsync(&Uint32AsyncEvent{u: 1})
 		}
 	})
 }

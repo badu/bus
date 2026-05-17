@@ -19,10 +19,6 @@ func NewInventoryGRPCClientRequestEvent() *InventoryGRPCClientRequestEvent {
 	return &result
 }
 
-func (i *InventoryGRPCClientRequestEvent) Async() bool {
-	return true // this one is async
-}
-
 func (i *InventoryGRPCClientRequestEvent) WaitReply() {
 	i.wg.Wait()
 }

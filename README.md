@@ -4,14 +4,15 @@
 - **Probably Fast**: no reflection
 - **Type Safe**: built on generics
 - **Small and Simple**: can be used as following:
+- **All subscribers are called async**: the functions that consume events are called from a go-routine
 
 Having the following event:
 
 ```go
     package events
 
-    type InterestingEvent struct {
-    }
+type InterestingEvent struct {
+}
 ```
 
 a listener can registering a handler by calling `Sub` method:
@@ -19,18 +20,18 @@ a listener can registering a handler by calling `Sub` method:
 ```go
     package subscriber
 
-   import "github.com/badu/bus"
-   
-   // ... somewhere in a setup function / constructor    
-   bus.Sub(OnMyEventOccurred)
+import "github.com/badu/bus"
+
+// ... somewhere in a setup function / constructor    
+bus.Sub(OnMyEventOccurred)
 ```
 
 where the handler is having the following signature:
 
 ```go
     func OnMyEventOccurred(event InterestingEvent){
-      // do something with the event here
-	}   
+// do something with the event here
+}   
 ```
 
 The event producer / dispatcher will simply:
@@ -38,42 +39,12 @@ The event producer / dispatcher will simply:
 ```go
     package dispatcher
 
-   import "github.com/badu/bus"
-   
-   // ...somewhere in a dispatching function
-   
-   bus.Pub(InterestingEvent{})
+import "github.com/badu/bus"
+
+// ...somewhere in a dispatching function
+
+bus.Pub(InterestingEvent{})
 ```
-
-If the event needs to go async, in the sense that the bus package will spin up a goroutine for the caller, just
-implement the following interface:
-
-```go
-    package events
-
-    func (e InterestingEvent) Async() bool{ return true }
-``` 
-
-if the handler has the signature declared above, or
-
-```go
-    package events
-
-    func (e *InterestingEvent) Async() bool{ return true }
-``` 
-
-if the handler has the signature as following:
-
-```go
-    func OnMyEventOccurred(event *InterestingEvent){
-      // do something with the event here
-	}   
-```
-
-Another way to publish an event async, is to use `PubAsync` method that package exposes.
-
-By default, the bus is using sync events, which means that it waits for listeners to complete their jobs before calling
-the next listener.
 
 Usage : `go get github.com/badu/bus`
 
@@ -98,10 +69,11 @@ Yes! The event handler has to return true.
 
 ```go
 package subscriber
+
 // ... somewhere in a setup function / constructor
 
-bus.SubCancel( func(event InterestingEvent) bool {
-    // do something with the event here
+bus.SubCancel( func (event InterestingEvent) bool {
+	// do something with the event here
 	return true // returning true will cancel the subscription
 })
 ```
@@ -111,8 +83,8 @@ bus.SubCancel( func(event InterestingEvent) bool {
 The events mapper is a `sync.Map`, so iterate using `Range`
 
 ```go
-bus.Range(func(k, v any)bool{
-	fmt.Printf("%#v %#v\n", k, v)
+bus.Range(func (k, v any)bool{
+fmt.Printf("%#v %#v\n", k, v)
 })
 ```
 
@@ -123,12 +95,12 @@ Yes! You have to implement the following interface:
 ```go
 package events
 
-func (e InterestingEvent) EventID() string{
+func (e InterestingEvent) EventID() string {
 	return "YourInterestingEventName"
 }
 ```
 
-The event name is the key of the mapper, which means that implementing your own event names might cause panics 
+The event name is the key of the mapper, which means that implementing your own event names might cause panics
 if you have name collisions.
 
 5. Will I have race conditions?
@@ -142,8 +114,8 @@ of each other's existence. This decoupling allows for greater flexibility and sc
 subscribers can be added to the system without disrupting existing components. Also, this facilitates testing by
 triggering or ignoring certain events in some scenarios.
 
-Asynchronous messaging: messages can be sent and received asynchronously (by spinning up goroutines), which means that
-publishers and subscribers don't have to wait for each other to consume their messages. This can improve performance and
+Asynchronous messaging: messages are received asynchronously (by spinning up goroutines), which means that bus doesn't
+have to wait for consumers to consume their messages. This can improve performance and
 response times in a system.
 
 Reliability: the message broker acts as a buffer between publishers and subscribers, ensuring that messages are
@@ -189,8 +161,6 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    As you can see
    the [test here](https://github.com/badu/bus/blob/master/test_scenarios/factory-request-reply/main_test.go) it's much
    more elegant and the service constructor is much slimmer.
-
-   Events are one sync and one async, just to check it works in both scenarios.
 
    Important to note that because a `WaitGroup` is being used in our event struct, we're forced to pass the events by
    using a pointer, instead of passing them by value.

@@ -21,5 +21,5 @@ func NewService(sb *strings.Builder) ServiceImpl {
 func (s *ServiceImpl) RegisterUser(ctx context.Context, name, phone string) {
 	s.c++
 	bus.Pub(events.UserRegisteredEvent{UserName: name, Phone: phone})
-	bus.Pub(&events.DummyEvent{AlteredAsync: s.c%2 == 0}) // nobody listens on this one
+	bus.Pub(&events.DummyEvent{Altered: s.c%2 == 0}) // nobody listens on this one
 }

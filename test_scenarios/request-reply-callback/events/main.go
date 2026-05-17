@@ -12,7 +12,3 @@ func NewRequestEvent[T any](payload T) *RequestEvent[T] {
 		Done:    make(chan struct{}),
 	}
 }
-
-func (i *RequestEvent[T]) Async() bool {
-	return true // this one is async
-}

@@ -2,6 +2,8 @@ package bus
 
 import (
 	"fmt"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 )
@@ -13,11 +15,6 @@ type iEventName interface {
 	EventID() string //
 }
 
-// if developers implement this interface, we're spinning a goroutine if the event says it is async
-type iAsync interface {
-	Async() bool
-}
-
 // Listener is being returned when you subscribe to a topic, so you can unsubscribe or access the parent topic
 type Listener[T any] struct {
 	parent   *Topic[T]     // so we can call unsubscribe from parent
@@ -27,58 +24,64 @@ type Listener[T any] struct {
 // Topic keeps the subscribers of one topic
 type Topic[T any] struct {
 	subs      []*Listener[T] // list of listeners
-	rwMu      sync.RWMutex   // guards subs
+	mu        sync.RWMutex   // guards subs
 	lisnsPool sync.Pool      // a pool of listeners
 }
 
 // NewTopic creates a new topic for a specie of events
 func NewTopic[T any]() *Topic[T] {
-	result := &Topic[T]{}
-	result.lisnsPool.New = func() any {
-		return &Listener[T]{
-			parent: result,
-		}
+	var result *Topic[T]
+	result = &Topic[T]{
+		lisnsPool: sync.Pool{
+			New: func() any {
+				return &Listener[T]{parent: result}
+			},
+		},
 	}
 	return result
 }
 
 // Sub adds a callback to be called when an event of that type is being published
-func (b *Topic[T]) Sub(callback func(v T)) *Listener[T] {
-	result := b.lisnsPool.Get().(*Listener[T])
+func (t *Topic[T]) Sub(callback func(event T)) *Listener[T] {
+	result, ok := t.lisnsPool.Get().(*Listener[T])
+	if !ok {
+		fmt.Println("[Topic][Sub] failed to allocate listener")
+		return nil
+	}
 	result.callback = callback
-	result.parent = b
+	result.parent = t
 
-	b.rwMu.Lock()
-	b.subs = append(b.subs, result)
-	b.rwMu.Unlock()
+	t.mu.Lock()
+	t.subs = append(t.subs, result)
+	t.mu.Unlock()
 
 	return result
 }
 
 // cancel is private to the topic, but can be accessed via Listener
-func (b *Topic[T]) cancel(who *Listener[T]) {
-	b.rwMu.Lock()
-	for i := range b.subs {
-		if b.subs[i] != who {
+func (t *Topic[T]) cancel(which *Listener[T]) {
+	t.mu.Lock()
+	for i := range t.subs {
+		if t.subs[i] != which {
 			continue
 		}
 
-		b.subs[i] = b.subs[len(b.subs)-1]
-		b.subs[len(b.subs)-1] = nil
-		b.subs = b.subs[:len(b.subs)-1]
+		t.subs[i] = t.subs[len(t.subs)-1]
+		t.subs[len(t.subs)-1] = nil
+		t.subs = t.subs[:len(t.subs)-1]
 		break
 	}
-	b.rwMu.Unlock()
+	t.mu.Unlock()
 
-	who.callback = nil
-	b.lisnsPool.Put(who)
+	which.callback = nil
+	t.lisnsPool.Put(which)
 }
 
 // NumSubs in case you need to perform tests and check the number of subscribers of this particular topic
-func (b *Topic[T]) NumSubs() int {
-	b.rwMu.RLock()
-	result := len(b.subs)
-	b.rwMu.RUnlock()
+func (t *Topic[T]) NumSubs() int {
+	t.mu.RLock()
+	result := len(t.subs)
+	t.mu.RUnlock()
 	return result
 }
 
@@ -93,35 +96,19 @@ func (s *Listener[T]) Topic() *Topic[T] {
 }
 
 // Pub allows you to publish an event in that topic
-func (b *Topic[T]) Pub(event T) {
-	b.rwMu.RLock()
+func (t *Topic[T]) Pub(event T) {
+	t.mu.RLock()
+	subsCopy := make([]*Listener[T], len(t.subs))
+	copy(subsCopy, t.subs)
+	t.mu.RUnlock()
 
-	isAsync := false
-	switch m := any(event).(type) {
-	case iAsync:
-		isAsync = m.Async()
-	}
-
-	for sub := range b.subs {
-		if isAsync {
-			go b.subs[sub].callback(event)
+	for _, sub := range subsCopy {
+		if sub.callback == nil {
 			continue
 		}
 
-		b.subs[sub].callback(event)
+		sub.callback(event)
 	}
-
-	b.rwMu.RUnlock()
-}
-
-func (b *Topic[T]) PubAsync(event T) {
-	b.rwMu.RLock()
-
-	for sub := range b.subs {
-		go b.subs[sub].callback(event)
-	}
-
-	b.rwMu.RUnlock()
 }
 
 // Bus is being returned when you subscribe, so you can manually Cancel
@@ -138,110 +125,154 @@ func (o *Bus[T]) Cancel() {
 }
 
 // SubCancel can be used if you need to unsubscribe immediately after receiving an event, by making your function return true
-func SubCancel[T any](callback func(event T) bool) *Bus[T] {
-	var (
-		event T
-		key   string
-	)
+// recovererInfo is declared as variadic, in order not to break the previous version, but only the first element is taken into consideration.
+// recovererInfo is a function that gets called if the go routine which does the callback panics
+func SubCancel[T any](callback func(event T) bool, recoverInfo ...func(panicError error, panicStack ...[]byte)) *Bus[T] {
+	key := getKey[T]()
 
-	switch m := any(event).(type) {
-	case iEventName:
-		key = m.EventID()
-	default:
-		key = fmt.Sprintf("%T", event)
+	existingTopic, ok := mapper.Load(key)
+	if !ok || existingTopic == nil {
+		newTopic := NewTopic[T]()
+		mapper.Store(key, newTopic)
+		existingTopic = newTopic
 	}
 
-	topic, ok := mapper.Load(key)
-	if !ok || topic == nil {
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+	topic, ok := existingTopic.(*Topic[T])
+	if !ok {
+		pc, _, _, pcOk := runtime.Caller(1)
+		if pcOk {
+			f := runtime.FuncForPC(pc)
+			if f != nil {
+				fmt.Println("[SubCancel] no such topic, called from ", f.Name())
+			}
+		} else {
+			fmt.Println("[SubCancel] no such topic on unknown caller")
+		}
+		return nil
 	}
 
 	var result Bus[T]
+	result.listener = topic.Sub(
+		func(v T) {
+			go func() {
+				defer func() {
+					if p := recover(); p != nil {
+						recovered, isError := p.(error)
+						if len(recoverInfo) > 0 {
+							if isError {
+								recoverInfo[0](recovered, debug.Stack())
+							} else {
+								recoverInfo[0](recovered)
+							}
+						}
+					}
+				}()
 
-	result.listener = topic.(*Topic[T]).Sub(func(v T) {
-		if result.stop.Load() == 1 {
-			return
-		}
+				if result.stop.Load() == 1 {
+					return
+				}
 
-		shouldCancel := callback(v)
-		if shouldCancel {
-			result.Cancel()
-		}
-
-	})
+				shouldCancel := callback(v)
+				if shouldCancel {
+					result.Cancel()
+				}
+			}()
+		},
+	)
 
 	return &result
 }
 
 // Sub subscribes a callback function to listen for a specie of events
-func Sub[T any](callback func(event T)) *Bus[T] {
-	var (
-		event T
-		key   string
-	)
+// recovererInfo is declared as variadic, in order not to break the previous version, but only the first element is taken into consideration.
+// recovererInfo is a function that gets called if the go routine which does the callback panics
+func Sub[T any](callback func(event T), recovererInfo ...func(panicError error, panicStack ...[]byte)) *Bus[T] {
+	key := getKey[T]()
 
-	switch m := any(event).(type) {
-	case iEventName:
-		key = m.EventID()
-	default:
-		key = fmt.Sprintf("%T", event)
+	existingTopic, ok := mapper.Load(key)
+	if !ok || existingTopic == nil {
+		newTopic := NewTopic[T]()
+		mapper.Store(key, newTopic)
+		existingTopic = newTopic
 	}
 
-	topic, ok := mapper.Load(key)
-	if !ok || topic == nil {
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
+	topic, ok := existingTopic.(*Topic[T])
+	if !ok {
+		pc, _, _, pcOk := runtime.Caller(1)
+		if pcOk {
+			f := runtime.FuncForPC(pc)
+			if f != nil {
+				fmt.Println("[Sub] no such topic, called from ", f.Name())
+			}
+		} else {
+			fmt.Println("[Sub] no such topic on unknown caller")
+		}
+		return nil
 	}
 
 	var result Bus[T]
+	result.listener = topic.Sub(
+		func(v T) {
+			go func() {
+				defer func() {
+					if p := recover(); p != nil {
+						recovered, isError := p.(error)
+						if len(recovererInfo) > 0 {
+							if isError {
+								recovererInfo[0](recovered, debug.Stack())
+							} else {
+								recovererInfo[0](recovered)
+							}
+						}
+					}
+				}()
 
-	result.listener = topic.(*Topic[T]).Sub(func(v T) {
-		if result.stop.Load() == 1 {
-			return
-		}
-		callback(v)
-	})
+				if result.stop.Load() == 1 {
+					return
+				}
+
+				callback(v)
+			}()
+		},
+	)
 
 	return &result
 }
 
 // Pub publishes an event which will be dispatched to all listeners
-func Pub[T any](event T) {
-	var key string
+func Pub[T any](event T, failures ...func(err string)) {
+	key := getKey[T]()
+	existingTopic, ok := mapper.Load(key)
+	if !ok || existingTopic == nil { // create a new topic, even if there are no listeners (otherwise we will have to panic)
+		newTopic := NewTopic[T]()
+		existingTopic, _ = mapper.LoadOrStore(key, newTopic)
+	}
 
-	switch m := any(event).(type) {
-	case iEventName:
-		key = m.EventID()
+	switch topic := existingTopic.(type) {
+	case *Topic[T]:
+		topic.Pub(event)
 	default:
-		key = fmt.Sprintf("%T", event)
+		if len(failures) > 0 {
+			failures[0](fmt.Sprintf("failt to publish on topic typed %T and event typed %T\n", topic, event))
+		}
 	}
-
-	topic, ok := mapper.Load(key)
-	if !ok || topic == nil { // create a new topic, even if there are no listeners (otherwise we will have to panic)
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
-	}
-
-	topic.(*Topic[T]).Pub(event)
-}
-
-// PubAsync publishes an event which will be dispatched to all listeners
-func PubAsync[T any](event T) {
-	var key string
-
-	switch m := any(event).(type) {
-	case iEventName:
-		key = m.EventID()
-	default:
-		key = fmt.Sprintf("%T", event)
-	}
-
-	topic, ok := mapper.Load(key)
-	if !ok || topic == nil { // create a new topic, even if there are no listeners (otherwise we will have to panic)
-		topic, _ = mapper.LoadOrStore(key, NewTopic[T]())
-	}
-	topic.(*Topic[T]).PubAsync(event)
 }
 
 // Range gives access to mapper Range
-func Range(f func(k, v any) bool) {
-	mapper.Range(f)
+func Range(iter func(k, v any) bool) {
+	mapper.Range(iter)
+}
+
+// Reset allows usage in tests that shares the bus
+func Reset() {
+	mapper = sync.Map{}
+}
+
+func getKey[T any]() string {
+	var zero T
+	if e, ok := any(zero).(iEventName); ok {
+		return e.EventID()
+	}
+
+	return fmt.Sprintf("%T", zero)
 }
