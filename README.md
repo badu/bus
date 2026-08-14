@@ -1,3 +1,5 @@
+
+
 # Bus
 
 - **Independent**: has no external dependencies
@@ -142,7 +144,7 @@ Inside the `test_scenarios` folder, you can find the following scenarios:
    send a welcoming email or a sms, or the audit system malfunctions.
 
    Simulating audit service malfunctions easy.
-   Instead of using `Sub`, we're using `SubUnsub` to register the listener
+   Instead of using `Sub`, we're using `SubCancel` to register the listener
    and return [`true`](https://github.com/badu/bus/blob/master/test_scenarios/fire-and-forget/audit/service.go#L36) to
    unsubscribe on events of that kind.
 
